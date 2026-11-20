@@ -89,19 +89,42 @@ def get_intro(title):
     return text
 
 
+SKIP_WORDS = {"The", "A", "An", "In", "On", "At", "After", "Before", "He", "She", "It", "They",
+              "This", "That", "There", "His", "Her", "Its", "One", "Some", "During", "Since"}
+
+
 def key_names(claim):
     """Capitalised word groups in the claim, e.g. 'Lizzy Caplan', 'Party Down', 'Don Bradman'."""
     claim = re.sub(r"\([^)]*\)", " ", claim)  # drop brackets such as '(film)'
-    return re.findall(r"[A-Z][\w'’\-]*(?:\s+[A-Z][\w'’\-]*)*", claim)
+    names = re.findall(r"[A-Z][\w'’\-]*(?:\s+[A-Z][\w'’\-]*)*", claim)
+    return [n for n in names if n not in SKIP_WORDS]
 
 
-def find_titles(claim, n=3):
+def find_titles(claim, n=3, hybrid=False):
     """
-    Step 1, with fallbacks. Wikipedia's search wants pages that contain all the words,
-    so a long or unusual sentence can return nothing. When that happens:
+    Step 1: which Wikipedia pages to read.
+
+    Default (V2): search the full claim. Wikipedia's search wants pages that contain all the
+    words, so a long or unusual sentence can return nothing. When that happens:
       fallback 1: search each key name in the claim separately ('Lizzy Caplan', 'Party Down')
       fallback 2: search the first 6 words of the claim
+
+    hybrid=True (V2.1): ALWAYS search the key names as well as the full claim, because the
+    analysis showed full-claim search finds the correct page only about half the time.
     """
+    if hybrid:
+        titles = []
+        for name in key_names(claim)[:3]:
+            for t in search_titles(name, 1):
+                if t not in titles:
+                    titles.append(t)
+        for t in search_titles(claim, 2):
+            if t not in titles:
+                titles.append(t)
+        if not titles:
+            titles = search_titles(" ".join(claim.split()[:6]), n)
+        return titles[:5]
+
     titles = search_titles(claim, n)
     if titles:
         return titles
@@ -124,8 +147,9 @@ def split_sentences(text):
 # ---------- Ranking ----------
 
 class Retriever:
-    def __init__(self, n_pages=3, k=5, rerank=False):
-        self.n_pages, self.k = n_pages, k
+    def __init__(self, n_pages=3, k=5, rerank=False, hybrid=False):
+        self.n_pages, self.k, self.hybrid = n_pages, k, hybrid
+        self.last_pages = []  # pages searched for the most recent claim (saved for analysis)
         print(f"Loading embedding model ({EMBED_MODEL})...")
         self.embedder = SentenceTransformer(EMBED_MODEL)
         self.reranker = None
@@ -134,7 +158,8 @@ class Retriever:
             self.reranker = CrossEncoder(RERANK_MODEL)
 
     def get_evidence(self, claim):
-        titles = find_titles(claim, self.n_pages)
+        titles = find_titles(claim, self.n_pages, hybrid=self.hybrid)
+        self.last_pages = titles
         # Each candidate keeps its page title, because sentences often say "He" or "It"
         # instead of the name: "Paris: It is the capital..." makes the meaning clear.
         candidates = [(t, s) for t in titles for s in split_sentences(get_intro(t))]
@@ -166,10 +191,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("claim")
     parser.add_argument("--rerank", action="store_true")
+    parser.add_argument("--hybrid", action="store_true", help="always search key names too")
     args = parser.parse_args()
 
-    retriever = Retriever(rerank=args.rerank)
-    print(f"\nPages found: {find_titles(args.claim)}")
+    retriever = Retriever(rerank=args.rerank, hybrid=args.hybrid)
+    print(f"\nPages found: {find_titles(args.claim, hybrid=args.hybrid)}")
     print(f"\nTop evidence for: {args.claim}\n")
     for i, ev in enumerate(retriever.get_evidence(args.claim), 1):
         print(f"[{i}] ({ev['title']}, score {ev['score']}) {ev['sentence']}\n")

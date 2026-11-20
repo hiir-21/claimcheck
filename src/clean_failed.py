@@ -1,5 +1,6 @@
 """
-Removes claims whose Wikipedia lookup failed, so they can be run again.
+Removes claims whose Wikipedia lookup or LLM call failed, so they can be run again.
+(Works for any predictions file: V1, V2, V2.1...)
 
 When the connection to Wikipedia drops, a claim can end up with no evidence at all.
 The model then (correctly) says NOT ENOUGH INFO, but that's unfair to V2: the problem
@@ -20,11 +21,14 @@ CACHE_FILE = ROOT / "data" / "wiki_cache.json"
 
 pred_file = Path(sys.argv[1])
 rows = [json.loads(line) for line in open(pred_file, encoding="utf-8")]
-kept = [r for r in rows if r.get("evidence")]
+no_evidence = [r for r in rows if "evidence" in r and not r["evidence"]]
+llm_failed = [r for r in rows if r.get("raw") == "ERROR"]  # e.g. the daily API limit was hit
+kept = [r for r in rows if r not in no_evidence and r not in llm_failed]
 with open(pred_file, "w", encoding="utf-8") as f:
     for r in kept:
         f.write(json.dumps(r) + "\n")
-print(f"{pred_file.name}: removed {len(rows) - len(kept)} claims with no evidence, kept {len(kept)}.")
+print(f"{pred_file.name}: removed {len(no_evidence)} claims with no evidence and "
+      f"{len(llm_failed)} where the LLM call failed; kept {len(kept)}.")
 
 if CACHE_FILE.exists():
     cache = json.loads(CACHE_FILE.read_text(encoding="utf-8"))

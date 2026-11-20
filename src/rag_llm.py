@@ -7,6 +7,8 @@ we retrieve 5 evidence sentences and tell it to decide from those, not from memo
 Run:  python src/rag_llm.py --limit 10            (quick test)
       python src/rag_llm.py                       (V2: embeddings only)
       python src/rag_llm.py --rerank              (V2 + reranker, saved to a separate file)
+      python src/rag_llm.py --hybrid              (V2.1: improved page search)
+      python src/rag_llm.py --hybrid --rerank     (V2.1 + reranker)
 Then: python src/evaluate.py results/v2_predictions.jsonl --name V2
       python src/evaluate.py results/v2_rerank_predictions.jsonl --name V2+rerank
 """
@@ -46,9 +48,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--rerank", action="store_true", help="add the cross-encoder reranker")
+    parser.add_argument("--hybrid", action="store_true", help="always search key names too (V2.1)")
     args = parser.parse_args()
 
-    out_file = ROOT / "results" / ("v2_rerank_predictions.jsonl" if args.rerank else "v2_predictions.jsonl")
+    name = "v2" + ("_hybrid" if args.hybrid else "") + ("_rerank" if args.rerank else "")
+    out_file = ROOT / "results" / f"{name}_predictions.jsonl"
     claims = [json.loads(line) for line in open(TEST_FILE, encoding="utf-8")]
     if args.limit:
         claims = claims[: args.limit]
@@ -57,15 +61,18 @@ def main():
     if out_file.exists():
         done = {json.loads(line)["id"] for line in open(out_file, encoding="utf-8")}
     todo = [c for c in claims if c["id"] not in done]
-    print(f"Model: {MODEL}. Reranker: {'on' if args.rerank else 'off'}. {len(done)} already done, {len(todo)} to go.")
+    print(f"Model: {MODEL}. Search: {'hybrid' if args.hybrid else 'claim'}. "
+          f"Reranker: {'on' if args.rerank else 'off'}. Output: {out_file.name}. "
+          f"{len(done)} already done, {len(todo)} to go.")
 
-    retriever = Retriever(rerank=args.rerank)
+    retriever = Retriever(rerank=args.rerank, hybrid=args.hybrid)
     with open(out_file, "a", encoding="utf-8") as out:
         for n, c in enumerate(tqdm(todo), 1):
             evidence = retriever.get_evidence(c["claim"])
             raw = ask(SYSTEM_PROMPT, build_message(c["claim"], evidence))
             # The evidence is saved too, so we can later check why an answer was right or wrong.
-            out.write(json.dumps({"id": c["id"], "pred": parse_label(raw), "raw": raw, "evidence": evidence}) + "\n")
+            out.write(json.dumps({"id": c["id"], "pred": parse_label(raw), "raw": raw,
+                                  "pages": retriever.last_pages, "evidence": evidence}) + "\n")
             out.flush()
             if n % 10 == 0:
                 save_cache()

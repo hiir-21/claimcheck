@@ -31,41 +31,47 @@ def fever_title(wiki_url):
     return t
 
 
-pred_file = Path(sys.argv[1])
-gold = {json.loads(l)["id"]: json.loads(l) for l in open(ROOT / "data" / "fever_test.jsonl", encoding="utf-8")}
-preds = [json.loads(l) for l in open(pred_file, encoding="utf-8")]
+def main():
+    pred_file = Path(sys.argv[1])
+    gold = {json.loads(l)["id"]: json.loads(l) for l in open(ROOT / "data" / "fever_test.jsonl", encoding="utf-8")}
+    preds = [json.loads(l) for l in open(pred_file, encoding="utf-8")]
 
-stats = Counter()
-for p in preds:
-    g = gold[p["id"]]
-    if g["label"] == "NOT ENOUGH INFO":
-        continue
-    gold_pages = {fever_title(ev[2]) for group in g["evidence"] for ev in group if ev[2]}
-    searched = set(find_titles(g["claim"]))
-    shown = {ev["title"] for ev in p["evidence"]}
-    found = bool(gold_pages & searched)
-    in_ev = bool(gold_pages & shown)
-    correct = p["pred"] == g["label"]
-    stats["total"] += 1
-    stats["found"] += found
-    stats["in_ev"] += in_ev
-    stats[f"correct_found_{found}"] += correct
-    stats[f"n_found_{found}"] += 1
+    stats = Counter()
+    for p in preds:
+        g = gold[p["id"]]
+        if g["label"] == "NOT ENOUGH INFO":
+            continue
+        gold_pages = {fever_title(ev[2]) for group in g["evidence"] for ev in group if ev[2]}
+        # Newer runs save the pages they searched; for older runs, recompute with the default search.
+        searched = set(p["pages"]) if "pages" in p else set(find_titles(g["claim"]))
+        shown = {ev["title"] for ev in p["evidence"]}
+        found = bool(gold_pages & searched)
+        in_ev = bool(gold_pages & shown)
+        correct = p["pred"] == g["label"]
+        stats["total"] += 1
+        stats["found"] += found
+        stats["in_ev"] += in_ev
+        stats[f"correct_found_{found}"] += correct
+        stats[f"n_found_{found}"] += 1
 
-n = stats["total"]
-print(f"\nRetrieval check on {n} SUPPORTS/REFUTES claims ({pred_file.name})")
-print(f"  Correct page found by search : {stats['found']}/{n} ({stats['found'] / n:.0%})")
-print(f"  Correct page in top-5 shown  : {stats['in_ev']}/{n} ({stats['in_ev'] / n:.0%})")
-for found in (True, False):
-    k = stats[f"n_found_{found}"]
-    if k:
-        acc = stats[f"correct_found_{found}"] / k
-        label = "page FOUND    " if found else "page NOT found"
-        print(f"  Accuracy when {label}: {acc:.0%} ({k} claims)")
+    n = stats["total"]
+    print(f"\nRetrieval check on {n} SUPPORTS/REFUTES claims ({pred_file.name})")
+    print(f"  Correct page found by search : {stats['found']}/{n} ({stats['found'] / n:.0%})")
+    print(f"  Correct page in top-5 shown  : {stats['in_ev']}/{n} ({stats['in_ev'] / n:.0%})")
+    for found in (True, False):
+        k = stats[f"n_found_{found}"]
+        if k:
+            acc = stats[f"correct_found_{found}"] / k
+            label = "page FOUND    " if found else "page NOT found"
+            print(f"  Accuracy when {label}: {acc:.0%} ({k} claims)")
 
-# Confusion matrix: rows = correct label, columns = what the system said
-print("\nConfusion matrix (rows = correct label, columns = predicted)")
-cm = Counter((gold[p["id"]]["label"], p["pred"]) for p in preds)
-print(f"{'':>18}" + "".join(f"{l[:12]:>14}" for l in LABELS))
-for g in LABELS:
-    print(f"{g:>18}" + "".join(f"{cm[(g, pr)]:>14}" for pr in LABELS))
+    # Confusion matrix: rows = correct label, columns = what the system said
+    print("\nConfusion matrix (rows = correct label, columns = predicted)")
+    cm = Counter((gold[p["id"]]["label"], p["pred"]) for p in preds)
+    print(f"{'':>18}" + "".join(f"{l[:12]:>14}" for l in LABELS))
+    for g in LABELS:
+        print(f"{g:>18}" + "".join(f"{cm[(g, pr)]:>14}" for pr in LABELS))
+
+
+if __name__ == "__main__":
+    main()
