@@ -7,7 +7,7 @@ An evidence-based AI fact-checking agent, evaluated on the FEVER benchmark.
 | Version | What it adds | Accuracy | Macro-F1 |
 | --- | --- | --- | --- |
 | V1 | LLM only, no evidence | 0.630 | 0.585 |
-| V2 | + Wikipedia retrieval (RAG) | | |
+| V2 | + Wikipedia retrieval (RAG) | 0.627 | 0.624 |
 | V3 | + fine-tuned DeBERTa checker | | |
 | V4 | + agent (claim splitting, re-search) | | |
 
