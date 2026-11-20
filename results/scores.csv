@@ -1,0 +1,2 @@
+timestamp,version,n,accuracy,acc_low,acc_high,macro_f1,f1_low,f1_high
+2026-11-20T10:45:58,V1,300,0.63,0.5767,0.6867,0.585,0.53,0.6379
