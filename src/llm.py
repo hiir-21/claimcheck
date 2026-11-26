@@ -20,6 +20,10 @@ client = Groq(api_key=os.environ["GROQ_API_KEY"])
 MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 
 
+class DailyLimitReached(Exception):
+    """Raised when Groq's free tokens-per-day limit is used up, so the run can stop cleanly."""
+
+
 def ask(system_prompt, user_message, retries=5):
     """Send one prompt to the LLM and return its text reply. Retries on rate limits."""
     request = dict(
@@ -40,6 +44,9 @@ def ask(system_prompt, user_message, retries=5):
             request.pop("reasoning_effort", None)
             continue
         except Exception as e:
+            if "tokens per day" in str(e) or "TPD" in str(e):
+                # Retrying won't help for hours: stop instead of saving fake "ERROR" answers.
+                raise DailyLimitReached(str(e))
             wait = 10 * (attempt + 1)
             print(f"\n  LLM error: {e}. Waiting {wait}s and retrying...")
             time.sleep(wait)

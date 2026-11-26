@@ -20,7 +20,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from llm import MODEL, ask, parse_label
+from llm import MODEL, DailyLimitReached, ask, parse_label
 from retriever import Retriever, save_cache
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -69,7 +69,13 @@ def main():
     with open(out_file, "a", encoding="utf-8") as out:
         for n, c in enumerate(tqdm(todo), 1):
             evidence = retriever.get_evidence(c["claim"])
-            raw = ask(SYSTEM_PROMPT, build_message(c["claim"], evidence))
+            try:
+                raw = ask(SYSTEM_PROMPT, build_message(c["claim"], evidence))
+            except DailyLimitReached:
+                save_cache()
+                print(f"\nDaily API limit reached after {n - 1} new claims. Progress is saved.")
+                print("Run the same command again tomorrow to continue from here.")
+                return
             # The evidence is saved too, so we can later check why an answer was right or wrong.
             out.write(json.dumps({"id": c["id"], "pred": parse_label(raw), "raw": raw,
                                   "pages": retriever.last_pages, "evidence": evidence}) + "\n")
