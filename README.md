@@ -10,7 +10,7 @@ An evidence-based AI fact-checking agent, evaluated on the FEVER benchmark.
 | V2 | + Wikipedia retrieval (RAG) | 0.627 | 0.624 |
 | V2.1 | + key-name (hybrid) search | 0.697 | 0.702 |
 | V2.1 + reranker | + cross-encoder reranker | 0.687 | 0.691 |
-| V3 | + fine-tuned DeBERTa checker | | |
+| V3 | fine-tuned DeBERTa checker (no LLM) | 0.697 | 0.680 |
 | V4 | + agent (claim splitting, re-search) | | |
 
 ## Setup
