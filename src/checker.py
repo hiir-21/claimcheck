@@ -6,6 +6,7 @@ results/v2_hybrid_predictions.jsonl), so the ONLY difference from V2.1 is who ju
 the LLM (V2.1) or our own trained model (V3). No API calls, so no daily limit.
 
 Run:  python src/checker.py
+      Dev set: python src/checker.py --data data/fever_dev.jsonl --evidence results/dev_v2_hybrid_predictions.jsonl --out results/dev_v3_predictions.jsonl
 Then: python src/evaluate.py results/v3_predictions.jsonl --name V3-checker
 """
 
@@ -58,11 +59,12 @@ def main():
     parser.add_argument("--evidence", default="results/v2_hybrid_predictions.jsonl",
                         help="predictions file whose saved evidence we reuse")
     parser.add_argument("--out", default="results/v3_predictions.jsonl")
+    parser.add_argument("--data", default="data/fever_test.jsonl", help="claims file (default: the exam)")
     args = parser.parse_args()
     if not args.model:
         raise SystemExit("Set CHECKER_MODEL in .env or pass --model your-username/claimcheck-deberta-v3-fever")
 
-    claims = {json.loads(l)["id"]: json.loads(l)["claim"] for l in open(ROOT / "data" / "fever_test.jsonl", encoding="utf-8")}
+    claims = {json.loads(l)["id"]: json.loads(l)["claim"] for l in open(ROOT / args.data, encoding="utf-8")}
     rows = [json.loads(l) for l in open(ROOT / args.evidence, encoding="utf-8")]
     checker = Checker(args.model)
 
@@ -72,7 +74,8 @@ def main():
             batch = rows[i:i + 16]
             preds = checker.predict([claims[r["id"]] for r in batch], [evidence_text(r["evidence"]) for r in batch])
             for r, (label, probs) in zip(batch, preds):
-                out.write(json.dumps({"id": r["id"], "pred": label, "probs": probs, "evidence": r["evidence"]}) + "\n")
+                out.write(json.dumps({"id": r["id"], "pred": label, "probs": probs,
+                                      "pages": r.get("pages", []), "evidence": r["evidence"]}) + "\n")
     print(f"Done. Predictions in {out_path}")
 
 

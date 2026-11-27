@@ -8,6 +8,8 @@ What it does:
 
 Run:  python src/prepare_data.py
       python src/prepare_data.py --per-label 150   (450 claims instead of 300)
+      Dev set for V3.1 (150 different claims, never the exam ones):
+      python src/prepare_data.py --per-label 50 --seed 7 --exclude data/fever_test.jsonl --out data/fever_dev.jsonl
 """
 
 import argparse
@@ -57,11 +59,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--per-label", type=int, default=100, help="claims per label (default 100 -> 300 total)")
     parser.add_argument("--seed", type=int, default=42, help="random seed, so the same claims are picked every time")
+    parser.add_argument("--exclude", default=None, help="a JSONL file whose claims must NOT be picked (e.g. the exam)")
+    parser.add_argument("--out", default=str(OUT_FILE), help="where to save the chosen claims")
     args = parser.parse_args()
 
     download()
     claims = load_claims()
     print(f"Loaded {len(claims)} claims. Label counts: {dict(Counter(c['label'] for c in claims))}")
+
+    if args.exclude:
+        excluded = {json.loads(l)["id"] for l in open(args.exclude, encoding="utf-8")}
+        claims = [c for c in claims if c["id"] not in excluded]
+        print(f"Excluded {len(excluded)} claims from {args.exclude}; {len(claims)} left to choose from.")
 
     random.seed(args.seed)
     test_set = []
@@ -70,11 +79,11 @@ def main():
         test_set += random.sample(pool, args.per_label)
     random.shuffle(test_set)
 
-    with open(OUT_FILE, "w", encoding="utf-8") as f:
+    with open(args.out, "w", encoding="utf-8") as f:
         for c in test_set:
             f.write(json.dumps(c) + "\n")
 
-    print(f"Saved {len(test_set)} claims to {OUT_FILE}")
+    print(f"Saved {len(test_set)} claims to {args.out}")
     print("Three examples:")
     for c in test_set[:3]:
         print(f"  [{c['label']}] {c['claim']}")

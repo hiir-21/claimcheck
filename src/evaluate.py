@@ -106,11 +106,12 @@ if __name__ == "__main__":
     parser.add_argument("pred_file", nargs="?", help="predictions JSONL with fields id and pred")
     parser.add_argument("--name", default="unnamed", help="version name for the scores table, e.g. V1")
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--gold", default=str(GOLD_FILE), help="file with the correct labels (default: the exam)")
     args = parser.parse_args()
 
     if args.self_test:
         self_test()
     elif args.pred_file:
-        evaluate(args.pred_file, args.name)
+        evaluate(args.pred_file, args.name, gold_file=args.gold)
     else:
         parser.print_help()

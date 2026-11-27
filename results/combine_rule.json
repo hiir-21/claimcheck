@@ -1,0 +1,5 @@
+{
+  "rule": "A",
+  "threshold": 0.95,
+  "dev_macro_f1": 0.6978
+}

@@ -11,6 +11,7 @@ An evidence-based AI fact-checking agent, evaluated on the FEVER benchmark.
 | V2.1 | + key-name (hybrid) search | 0.697 | 0.702 |
 | V2.1 + reranker | + cross-encoder reranker | 0.687 | 0.691 |
 | V3 | fine-tuned DeBERTa checker (no LLM) | 0.697 | 0.680 |
+| V3.1 | LLM + checker combined (rule tuned on dev set) | 0.727 | 0.731 |
 | V4 | + agent (claim splitting, re-search) | | |
 
 ## Setup

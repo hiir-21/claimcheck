@@ -9,6 +9,7 @@ Run:  python src/rag_llm.py --limit 10            (quick test)
       python src/rag_llm.py --rerank              (V2 + reranker, saved to a separate file)
       python src/rag_llm.py --hybrid              (V2.1: improved page search)
       python src/rag_llm.py --hybrid --rerank     (V2.1 + reranker)
+      python src/rag_llm.py --hybrid --data data/fever_dev.jsonl   (dev set -> results/dev_v2_hybrid_...)
 Then: python src/evaluate.py results/v2_predictions.jsonl --name V2
       python src/evaluate.py results/v2_rerank_predictions.jsonl --name V2+rerank
 """
@@ -49,11 +50,14 @@ def main():
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--rerank", action="store_true", help="add the cross-encoder reranker")
     parser.add_argument("--hybrid", action="store_true", help="always search key names too (V2.1)")
+    parser.add_argument("--data", default=str(TEST_FILE), help="claims to run on (default: the exam)")
     args = parser.parse_args()
 
-    name = "v2" + ("_hybrid" if args.hybrid else "") + ("_rerank" if args.rerank else "")
+    data_file = Path(args.data)
+    prefix = "" if data_file.resolve() == TEST_FILE.resolve() else data_file.stem.replace("fever_", "") + "_"
+    name = prefix + "v2" + ("_hybrid" if args.hybrid else "") + ("_rerank" if args.rerank else "")
     out_file = ROOT / "results" / f"{name}_predictions.jsonl"
-    claims = [json.loads(line) for line in open(TEST_FILE, encoding="utf-8")]
+    claims = [json.loads(line) for line in open(data_file, encoding="utf-8")]
     if args.limit:
         claims = claims[: args.limit]
 
